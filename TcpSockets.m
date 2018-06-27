@@ -15,7 +15,6 @@
 #define COUNTER_OFFSET 5000
 
 @implementation TcpSockets {
-	
 	NSMutableDictionary<NSNumber *,TcpSocketClient *> *_clients;
 	int _counter;
 }
@@ -23,21 +22,11 @@
 RCT_EXPORT_MODULE()
 
 - (NSArray<NSString *> *)supportedEvents {
-	
-	return @[@"connect",
-			 @"connection",
-			 @"data",
-			 @"close",
-			 @"error"];
+	return @[@"connect", @"connection", @"data", @"close", @"error"];
 }
 
-- (void)startObserving {
-	// Does nothing
-}
-
-- (void)stopObserving {
-	// Does nothing
-}
+- (void)startObserving { /* Does nothing */ }
+- (void)stopObserving { /* Does nothing */ }
 
 -(void)dealloc {
 	for (NSNumber *cId in _clients.allKeys) {
@@ -46,20 +35,9 @@ RCT_EXPORT_MODULE()
 }
 
 - (TcpSocketClient *)createSocket:(nonnull NSNumber*)cId {
-	
-	if (!cId) {
-		RCTLogWarn(@"%@.createSocket called with nil id parameter.", [self class]);
-		return nil;
-	}
-	
-	if (!_clients) {
-		_clients = [NSMutableDictionary new];
-	}
-	
-	if (_clients[cId]) {
-		RCTLogWarn(@"%@.createSocket called twice with the same id.", [self class]);
-		return nil;
-	}
+	if (!cId) { RCTLogWarn(@"%@.createSocket called with nil id parameter.", [self class]); return nil; }
+	if (!_clients) { _clients = [NSMutableDictionary new]; }
+	if (_clients[cId]) { RCTLogWarn(@"%@.createSocket called twice with the same id.", [self class]); return nil; }
 	
 	_clients[cId] = [TcpSocketClient socketClientWithId:cId andConfig:self];
 	
@@ -67,30 +45,23 @@ RCT_EXPORT_MODULE()
 }
 
 RCT_EXPORT_METHOD(connect:(nonnull NSNumber*)cId host:(NSString *)host port:(int)port withOptions:(NSDictionary *)options) {
-	
 	TcpSocketClient *client = _clients[cId];
-	if (!client) {
-		client = [self createSocket:cId];
-	}
+	if (!client) { client = [self createSocket:cId]; }
 	
 	NSError *error = nil;
-	if (![client connect:host port:port withOptions:options error:&error])
-	{
+	if (![client connect:host port:port withOptions:options error:&error]) {
 		[self onError:client withError:error];
 		return;
 	}
 }
 
 RCT_EXPORT_METHOD(write:(nonnull NSNumber*)cId string:(NSString *)base64String callback:(RCTResponseSenderBlock)callback) {
-	
 	TcpSocketClient* client = [self findClient:cId];
 	if (!client) return;
 	
 	// iOS7+
 	// TODO: use https://github.com/nicklockwood/Base64 for compatibility with earlier iOS versions
-	
 	NSData *data = [[NSData alloc] initWithBase64EncodedString:base64String options:0];
-	
 	[client writeData:data callback:callback];
 }
 
@@ -102,27 +73,13 @@ RCT_EXPORT_METHOD(destroy:(nonnull NSNumber*)cId) {
 	[self destroyClient:cId];
 }
 
-RCT_EXPORT_METHOD(listen:(nonnull NSNumber*)cId host:(NSString *)host port:(int)port) {
-	
-	TcpSocketClient* client = _clients[cId];
-	if (!client) {
-		client = [self createSocket:cId];
-	}
-	
-	NSError *error = nil;
-	if (![client listen:host port:port error:&error]) {
-		[self onError:client withError:error];
-		return;
-	}
-}
-
 - (void)onConnect:(TcpSocketClient*) client {
 	[self sendEventWithName:@"connect" body:@{ @"id": client.id, @"address" : [client getAddress] }];
 }
 
 -(void)onConnection:(TcpSocketClient *)client toClient:(NSNumber *)clientID {
 	_clients[client.id] = client;
-	[self sendEventWithName:@"connection" body:@{ @"id": clientID, @"info": @{ @"id": client.id, @"address" : [client getAddress] } }];
+	[self sendEventWithName:@"connection" body:@{ @"id": clientID, @"info": @{ @"id": client.id } }];
 }
 
 - (void)onData:(NSNumber *)clientID data:(NSData *)data {
@@ -130,12 +87,8 @@ RCT_EXPORT_METHOD(listen:(nonnull NSNumber*)cId host:(NSString *)host port:(int)
 }
 
 - (void)onClose:(NSNumber*) clientID withError:(NSError *)err {
-	
 	TcpSocketClient* client = [self findClient:clientID];
-	
-	if (!client) {
-		RCTLogWarn(@"onClose: unrecognized client id %@", clientID);
-	}
+	if (!client) { RCTLogWarn(@"onClose: unrecognized client id %@", clientID); }
 	
 	if (err) {
 		[self onError:client withError:err];
@@ -149,25 +102,20 @@ RCT_EXPORT_METHOD(listen:(nonnull NSNumber*)cId host:(NSString *)host port:(int)
 - (void)onError:(TcpSocketClient*) client withError:(NSError *)err {
 	NSString *msg = err.localizedFailureReason ?: err.localizedDescription;
 	[self sendEventWithName:@"error" body:@{ @"id": client.id, @"error": msg }];
-	
 }
 
 -(TcpSocketClient*)findClient:(nonnull NSNumber*)cId {
-	
 	TcpSocketClient *client = _clients[cId];
-	
 	if (!client) {
 		NSString *msg = [NSString stringWithFormat:@"no client found with id %@", cId];
 		[self sendEventWithName:@"error" body:@{ @"id": cId, @"error": msg }];
 		
 		return nil;
 	}
-	
 	return client;
 }
 
 -(void)endClient:(nonnull NSNumber*)cId {
-	
 	TcpSocketClient* client = [self findClient:cId];
 	if (!client) return;
 	
@@ -175,7 +123,6 @@ RCT_EXPORT_METHOD(listen:(nonnull NSNumber*)cId host:(NSString *)host port:(int)
 }
 
 -(void)destroyClient:(nonnull NSNumber*)cId {
-	
 	TcpSocketClient* client = [self findClient:cId];
 	if (!client) return;
 	

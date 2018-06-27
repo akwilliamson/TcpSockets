@@ -61,62 +61,38 @@ NSString *const RCTTCPErrorDomain = @"RCTTCPErrorDomain";
 	
 	_isSecure = (port == 9182) ? true : false;
 	
+	_tcpSocket = [[GCDAsyncSocket alloc] initWithDelegate:self delegateQueue:dispatch_get_main_queue()];
+	[_tcpSocket setUserData: _id];
+	
 	if (_isSecure == true) {
-		
-		_tcpSocket = [[GCDAsyncSocket alloc] initWithDelegate:self delegateQueue:dispatch_get_main_queue()];
-		[_tcpSocket setUserData: _id];
-		BOOL result = false;
-		result = [_tcpSocket connectToHost:host onPort:port withTimeout:([@"60000" intValue] / 1000) error:error];
-		
-		return result;
-		
+		return [_tcpSocket connectToHost:host onPort:port withTimeout:([@"60000" intValue] / 1000) error:error];
 	} else {
-		
-		_tcpSocket = [[GCDAsyncSocket alloc] initWithDelegate:self delegateQueue:dispatch_get_main_queue()];
-		[_tcpSocket setUserData: _id];
-		
-		BOOL result = false;
-		
 		NSString *localAddress = (options?options[@"localAddress"]:nil);
 		NSNumber *localPort = (options?options[@"localPort"]:nil);
 		
 		if (!localAddress && !localPort) {
-			result = [_tcpSocket connectToHost:host onPort:port error:error];
+			return [_tcpSocket connectToHost:host onPort:port error:error];
 		} else {
 			NSMutableArray *interface = [NSMutableArray arrayWithCapacity:2];
 			[interface addObject: localAddress?localAddress:@""];
 			if (localPort) {
 				[interface addObject:[localPort stringValue]];
 			}
-			result = [_tcpSocket connectToHost:host
-										onPort:port
-								  viaInterface:[interface componentsJoinedByString:@":"]
-								   withTimeout:-1
-										 error:error];
+			return [_tcpSocket connectToHost:host onPort:port viaInterface:[interface componentsJoinedByString:@":"] withTimeout:-1 error:error];
 		}
-		
-		return result;
 	}
 }
 
 - (NSDictionary<NSString *, id> *)getAddress {
 	
-	if (_tcpSocket)
-	{
+	if (_tcpSocket) {
 		if (_tcpSocket.isConnected) {
-			return @{ @"port": @(_tcpSocket.connectedPort),
-					  @"address": _tcpSocket.connectedHost ?: @"unknown",
-					  @"family": _tcpSocket.isIPv6?@"IPv6":@"IPv4" };
+			return @{ @"port": @(_tcpSocket.connectedPort), @"address": _tcpSocket.connectedHost ?: @"unknown", @"family": _tcpSocket.isIPv6?@"IPv6":@"IPv4" };
 		} else {
-			return @{ @"port": @(_tcpSocket.localPort),
-					  @"address": _tcpSocket.localHost ?: @"unknown",
-					  @"family": _tcpSocket.isIPv6?@"IPv6":@"IPv4" };
+			return @{ @"port": @(_tcpSocket.localPort), @"address": _tcpSocket.localHost ?: @"unknown", @"family": _tcpSocket.isIPv6?@"IPv6":@"IPv4" };
 		}
 	}
-	
-	return @{ @"port": @(0),
-			  @"address": @"unknown",
-			  @"family": @"unkown" };
+	return @{ @"port": @(0), @"address": @"unknown", @"family": @"unkown" };
 }
 
 - (BOOL)listen:(NSString *)host port:(int)port error:(NSError **)error {
@@ -144,7 +120,6 @@ NSString *const RCTTCPErrorDomain = @"RCTTCPErrorDomain";
 			[_clientDelegate onConnect: self];
 			[_tcpSocket readDataWithTimeout:-1 tag:_id.longValue];
 		}
-		
 		return isListening;
 	}
 }
@@ -234,8 +209,8 @@ NSString *const RCTTCPErrorDomain = @"RCTTCPErrorDomain";
 	
 	if (_isSecure) {
 		[_clientDelegate onData:@(tag) data:data];
-		//		[_tcpSocket setDelegate:nil delegateQueue:NULL];
-		//		[_tcpSocket disconnect];
+		[_tcpSocket setDelegate:nil delegateQueue:NULL];
+		[_tcpSocket disconnect];
 	} else {
 		[_clientDelegate onData:@(tag) data:data];
 		[sock readDataWithTimeout:-1 tag:tag];
