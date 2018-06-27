@@ -39,7 +39,6 @@ typedef enum RCTTCPError RCTTCPError;
 
 @property (nonatomic, retain) NSNumber * id;
 @property (nonatomic, assign) BOOL isSecure;
-@property (nonatomic, assign) NSData *dataToSend;
 @property (nonatomic, weak) id<SocketClientDelegate> clientDelegate;
 
 ///---------------------------------------------------------------------------------------

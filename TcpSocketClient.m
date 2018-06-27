@@ -27,13 +27,11 @@ NSString *const RCTTCPErrorDomain = @"RCTTCPErrorDomain";
 
 @implementation TcpSocketClient
 
-+ (id)socketClientWithId:(nonnull NSNumber *)clientID andConfig:(id<SocketClientDelegate>)delegate
-{
++ (id)socketClientWithId:(nonnull NSNumber *)clientID andConfig:(id<SocketClientDelegate>)delegate {
 	return [[[self class] alloc] initWithClientId:clientID andConfig:delegate andSocket:nil];
 }
 
-- (id)initWithClientId:(NSNumber *)clientID andConfig:(id<SocketClientDelegate>)aDelegate
-{
+- (id)initWithClientId:(NSNumber *)clientID andConfig:(id<SocketClientDelegate>)aDelegate {
 	return [self initWithClientId:clientID andConfig:aDelegate andSocket:nil];
 }
 
@@ -52,24 +50,19 @@ NSString *const RCTTCPErrorDomain = @"RCTTCPErrorDomain";
 	return self;
 }
 
-- (BOOL)connect:(NSString *)host port:(int)port withOptions:(NSDictionary *)options error:(NSError **)error
-{
+- (BOOL)connect:(NSString *)host port:(int)port withOptions:(NSDictionary *)options error:(NSError **)error {
+	
 	if (_tcpSocket) {
 		if (error) {
 			*error = [self badInvocationError:@"this client's socket is already connected"];
 		}
-		
 		return false;
 	}
 	
-	if (port == 9182) {
-		_isSecure = true;
-	} else {
-		_isSecure = false;
-	}
+	_isSecure = (port == 9182) ? true : false;
 	
 	if (_isSecure == true) {
-		NSLog(@"Connecting (TLS) to \"%@\" on port %i...", host, port);
+		
 		_tcpSocket = [[GCDAsyncSocket alloc] initWithDelegate:self delegateQueue:dispatch_get_main_queue()];
 		[_tcpSocket setUserData: _id];
 		BOOL result = false;
@@ -78,7 +71,7 @@ NSString *const RCTTCPErrorDomain = @"RCTTCPErrorDomain";
 		return result;
 		
 	} else {
-	
+		
 		_tcpSocket = [[GCDAsyncSocket alloc] initWithDelegate:self delegateQueue:dispatch_get_main_queue()];
 		[_tcpSocket setUserData: _id];
 		
@@ -106,8 +99,8 @@ NSString *const RCTTCPErrorDomain = @"RCTTCPErrorDomain";
 	}
 }
 
-- (NSDictionary<NSString *, id> *)getAddress
-{
+- (NSDictionary<NSString *, id> *)getAddress {
+	
 	if (_tcpSocket)
 	{
 		if (_tcpSocket.isConnected) {
@@ -126,18 +119,16 @@ NSString *const RCTTCPErrorDomain = @"RCTTCPErrorDomain";
 			  @"family": @"unkown" };
 }
 
-- (BOOL)listen:(NSString *)host port:(int)port error:(NSError **)error
-{
+- (BOOL)listen:(NSString *)host port:(int)port error:(NSError **)error {
+	
 	if (_tcpSocket) {
 		if (error) {
 			*error = [self badInvocationError:@"this client's socket is already connected"];
 		}
-		
 		return false;
 	}
 	
 	if (_isSecure) {
-		NSLog(@"IS LISTENING");
 		return true;
 	} else {
 		_tcpSocket = [[GCDAsyncSocket alloc] initWithDelegate:self delegateQueue:dispatch_get_main_queue()];
@@ -158,11 +149,9 @@ NSString *const RCTTCPErrorDomain = @"RCTTCPErrorDomain";
 	}
 }
 
-- (void)setPendingSend:(RCTResponseSenderBlock)callback forKey:(NSNumber *)key
-{
-	if (_isSecure == true) {
-		NSLog(@"do nothing");
-	} else {
+- (void)setPendingSend:(RCTResponseSenderBlock)callback forKey:(NSNumber *)key {
+	
+	if (!_isSecure) {
 		[_lock lock];
 		@try {
 			[_pendingSends setObject:callback forKey:key];
@@ -173,8 +162,8 @@ NSString *const RCTTCPErrorDomain = @"RCTTCPErrorDomain";
 	}
 }
 
-- (RCTResponseSenderBlock)getPendingSend:(NSNumber *)key
-{
+- (RCTResponseSenderBlock)getPendingSend:(NSNumber *)key {
+	
 	[_lock lock];
 	@try {
 		return [_pendingSends objectForKey:key];
@@ -184,11 +173,9 @@ NSString *const RCTTCPErrorDomain = @"RCTTCPErrorDomain";
 	}
 }
 
-- (void)dropPendingSend:(NSNumber *)key
-{
-	NSLog(@"QWERTY- (void)dropPendingSend:(NSNumber *)key");
+- (void)dropPendingSend:(NSNumber *)key {
 	
-	if (_isSecure == true) {
+	if (_isSecure) {
 		NSLog(@"do nothing");
 	} else {
 		[_lock lock];
@@ -201,11 +188,9 @@ NSString *const RCTTCPErrorDomain = @"RCTTCPErrorDomain";
 	}
 }
 
-- (void)socket:(GCDAsyncSocket *)sock didWriteDataWithTag:(long)msgTag
-{
-	if (_isSecure == true) {
-		NSLog(@"do nothing");
-	} else {
+- (void)socket:(GCDAsyncSocket *)sock didWriteDataWithTag:(long)msgTag {
+	
+	if (!_isSecure) {
 		NSNumber* tagNum = [NSNumber numberWithLong:msgTag];
 		RCTResponseSenderBlock callback = [self getPendingSend:tagNum];
 		if (callback) {
@@ -215,64 +200,51 @@ NSString *const RCTTCPErrorDomain = @"RCTTCPErrorDomain";
 	}
 }
 
-- (void) writeData:(NSData *)data
-		  callback:(RCTResponseSenderBlock)callback
-{
-	if (_isSecure == true) {
-		if (callback) {
-			[self setPendingSend:callback forKey:@(_sendTag)];
-		}
-		_sendTag++;
-		
+- (void) writeData:(NSData *)data callback:(RCTResponseSenderBlock)callback {
+	
+	if (callback) {
+		[self setPendingSend:callback forKey:@(_sendTag)];
+	}
+	
+	if (_isSecure) {
 		[_tcpSocket writeData:data withTimeout:60 tag:0];
 		[_tcpSocket readDataToData:[GCDAsyncSocket LFData] withTimeout:60 tag:0];
-	} else {
-		if (callback) {
-			[self setPendingSend:callback forKey:@(_sendTag)];
-		}
-		[_tcpSocket writeData:data withTimeout:-1 tag:_sendTag];
-		
-		
 		_sendTag++;
-		
+	} else {
+		[_tcpSocket writeData:data withTimeout:-1 tag:_sendTag];
 		[_tcpSocket readDataWithTimeout:-1 tag:_id.longValue];
+		_sendTag++;
 	}
 }
 
-- (void)end
-{
+- (void)end {
 	[_tcpSocket disconnectAfterWriting];
 }
 
-- (void)destroy
-{
+- (void)destroy {
 	[_tcpSocket disconnect];
 }
 
 - (void)socket:(GCDAsyncSocket *)sock didReadData:(NSData *)data withTag:(long)tag {
+	
 	if (!_clientDelegate) {
 		RCTLogWarn(@"didReadData with nil clientDelegate for %@", [sock userData]);
 		return;
 	}
-	NSString *response = [[NSString alloc] initWithData:data encoding:4];
-	NSLog(@"YAY DATA: %@", response);
 	
 	if (_isSecure) {
-		
 		[_clientDelegate onData:@(tag) data:data];
-//		[_tcpSocket setDelegate:nil delegateQueue:NULL];
-//		[_tcpSocket disconnect];
+		//		[_tcpSocket setDelegate:nil delegateQueue:NULL];
+		//		[_tcpSocket disconnect];
 	} else {
 		[_clientDelegate onData:@(tag) data:data];
 		[sock readDataWithTimeout:-1 tag:tag];
 	}
 }
 
-- (void)socket:(GCDAsyncSocket *)sock didAcceptNewSocket:(GCDAsyncSocket *)newSocket
-{
-	if (_isSecure) {
-		NSLog(@"do nothing");
-	} else {
+- (void)socket:(GCDAsyncSocket *)sock didAcceptNewSocket:(GCDAsyncSocket *)newSocket {
+	
+	if (!_isSecure) {
 		TcpSocketClient *inComing = [[TcpSocketClient alloc] initWithClientId:[_clientDelegate getNextId]
 																	andConfig:_clientDelegate
 																	andSocket:newSocket];
@@ -290,7 +262,7 @@ NSString *const RCTTCPErrorDomain = @"RCTTCPErrorDomain";
 		return;
 	}
 	
-	if (_isSecure == true) {
+	if (_isSecure) {
 		[sock performBlock:^{
 			if ([sock enableBackgroundingOnSocket]) {
 				NSLog(@"Enabled backgrounding on socket");
@@ -298,30 +270,25 @@ NSString *const RCTTCPErrorDomain = @"RCTTCPErrorDomain";
 				NSLog(@"Enabling backgrounding failed!");
 			}
 		}];
+		
 		NSMutableDictionary *settings = [NSMutableDictionary dictionaryWithCapacity:3];
-		NSLog(@"Starting TLS with settings:\n%@", settings);
 		[sock startTLS:settings];
+		
 	} else {
 		[_clientDelegate onConnect:self];
-		
 		[sock readDataWithTimeout:-1 tag:_id.longValue];
 	}
 }
 
-- (void)socketDidSecure:(GCDAsyncSocket *)sock
-{
+- (void)socketDidSecure:(GCDAsyncSocket *)sock {
 	[_clientDelegate onConnect:self];
 }
 
-- (void)socketDidCloseReadStream:(GCDAsyncSocket *)sock
-{
-	// TODO : investigate for half-closed sockets
-	// for now close the stream completely
+- (void)socketDidCloseReadStream:(GCDAsyncSocket *)sock {
 	[sock disconnect];
 }
 
-- (void)socketDidDisconnect:(GCDAsyncSocket *)sock withError:(NSError *)err
-{
+- (void)socketDidDisconnect:(GCDAsyncSocket *)sock withError:(NSError *)err {
 	if (!_clientDelegate) {
 		RCTLogWarn(@"socketDidDisconnect with nil clientDelegate for %@", [sock userData]);
 		return;
@@ -330,13 +297,9 @@ NSString *const RCTTCPErrorDomain = @"RCTTCPErrorDomain";
 	[_clientDelegate onClose:[sock userData] withError:(!err || err.code == GCDAsyncSocketClosedError ? nil : err)];
 }
 
-- (NSError *)badInvocationError:(NSString *)errMsg
-{
+- (NSError *)badInvocationError:(NSString *)errMsg {
 	NSDictionary *userInfo = [NSDictionary dictionaryWithObject:errMsg forKey:NSLocalizedDescriptionKey];
-	
-	return [NSError errorWithDomain:RCTTCPErrorDomain
-							   code:RCTTCPInvalidInvocationError
-						   userInfo:userInfo];
+	return [NSError errorWithDomain:RCTTCPErrorDomain code:RCTTCPInvalidInvocationError userInfo:userInfo];
 }
 
 @end
